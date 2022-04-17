@@ -1,3 +1,10 @@
+use std::mem::size_of;
+use wgpu::util::DeviceExt;
+
+use canvas3d::{
+    uniforms::{Rect, Transforms},
+    vertices::Vertex,
+};
 use fontdue::layout::{CoordinateSystem, Layout, LayoutSettings, TextStyle};
 
 mod path;
@@ -25,6 +32,8 @@ mod atlas;
 
 mod glyphs;
 use glyphs::GlyphCache;
+
+pub mod canvas3d;
 
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
@@ -62,11 +71,24 @@ pub struct VGER {
     pen: LocalPoint,
     glyph_cache: GlyphCache,
     layout: Layout,
+
+    // 3d
+    pub viewport3d: Rect,
+    pub transforms3d: Transforms,
+    transforms3d_buffer: wgpu::Buffer,
+    bind_group3d: wgpu::BindGroup,
+    pipeline3d: wgpu::RenderPipeline,
+    // pub processed_shape: Option<Arc<ProcessedShape>>,
+    // geometries: Geometries,
 }
 
 impl VGER {
     /// Create a new renderer given a device and output pixel format.
-    pub fn new(device: &wgpu::Device, texture_format: wgpu::TextureFormat) -> Self {
+    pub fn new(
+        device: &wgpu::Device,
+        texture_format: wgpu::TextureFormat,
+        // texture_format3d: wgpu::TextureFormat, // TODO: do we need this ?
+    ) -> Self {
         let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
             label: None,
             source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!(
@@ -189,6 +211,130 @@ impl VGER {
 
         let layout = Layout::new(CoordinateSystem::PositiveYUp);
 
+        ////////// 3d
+
+        let shader3d = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+            label: None,
+            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!(
+                "canvas3d/shader.wgsl"
+            ))),
+        });
+
+        let viewport3d = Rect::default();
+        let transforms3d = Transforms::default();
+        let transforms3d_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: None,
+            contents: bytemuck::cast_slice(&[transforms3d]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let bind_group_layout3d =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::all(),
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(size_of::<Transforms>() as u64),
+                    },
+                    count: None,
+                }],
+                label: None,
+            });
+
+        let bind_group3d = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &bind_group_layout3d,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                    buffer: &transforms3d_buffer,
+                    offset: 0,
+                    size: None,
+                }),
+            }],
+            label: None,
+        });
+
+        let pipeline3d_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: None,
+            bind_group_layouts: &[&bind_group_layout3d],
+            push_constant_ranges: &[],
+        });
+        let pipeline3d = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: None,
+            layout: Some(&pipeline3d_layout),
+            vertex: wgpu::VertexState {
+                module: &shader3d,
+                entry_point: "vs_main",
+                // buffers: &[],
+                buffers: &[wgpu::VertexBufferLayout {
+                    array_stride: size_of::<Vertex>() as u64,
+                    step_mode: wgpu::VertexStepMode::Vertex,
+                    attributes: &wgpu::vertex_attr_array![
+                        0 => Float32x3,
+                        1 => Float32x3,
+                        2 => Float32x4,
+                    ],
+                }],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader3d,
+                //entry_point: "fs_main",
+                // entry_point: "frag_model",
+                entry_point: "frag_mesh",
+                // targets: &[texture_format3d.into()],
+                targets: &[texture_format.into()],
+                // TODO: check wether we need the one below
+                // targets: &[wgpu::ColorTargetState {
+                //     format: texture_format3d,
+                //     blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                //     write_mask: wgpu::ColorWrites::ALL,
+                // }],
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: None,
+                unclipped_depth: false,
+                // polygon_mode: wgpu::PolygonMode::Fill,
+                polygon_mode: wgpu::PolygonMode::Line,
+                conservative: false,
+            },
+            depth_stencil: None, // if we do not disable: ONLY with z==0 visible
+            // depth_stencil: Some(wgpu::DepthStencilState {
+            //     format: DEPTH_FORMAT,
+            //     depth_write_enabled: true,
+            //     depth_compare: wgpu::CompareFunction::LessEqual,
+            //     stencil: wgpu::StencilState {
+            //         front: wgpu::StencilFaceState::IGNORE,
+            //         back: wgpu::StencilFaceState::IGNORE,
+            //         read_mask: 0,
+            //         write_mask: 0,
+            //     },
+            //     // stencil: Default::default(),
+            //     bias: wgpu::DepthBiasState::default(),
+            // }),
+            multisample: wgpu::MultisampleState::default(),
+            // multisample: wgpu::MultisampleState {
+            //     count: 1,
+            //     mask: !0,
+            //     alpha_to_coverage_enabled: false,
+            // },
+            multiview: None,
+        });
+
+        // let geometries = Geometries::new(
+        //     &device,
+        //     &Vertices::empty(),
+        //     &Vertices::empty(),
+        //     Aabb {
+        //         min: Point::from([0.0, 0.0, 0.0]),
+        //         max: Point::from([0.0, 0.0, 0.0]),
+        //     },
+        // );
+
         Self {
             scenes,
             cur_scene: 0,
@@ -205,6 +351,15 @@ impl VGER {
             pen: LocalPoint::zero(),
             glyph_cache,
             layout,
+
+            // 3d:
+            viewport3d,
+            transforms3d,
+            transforms3d_buffer,
+            bind_group3d,
+            pipeline3d,
+            // processed_shape: None,
+            // geometries,
         }
     }
 
