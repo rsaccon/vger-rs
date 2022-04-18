@@ -2,12 +2,12 @@ use fj_math::{Aabb, Point};
 use std::mem::size_of;
 use wgpu::util::DeviceExt;
 
-use canvas3d::{
+use fontdue::layout::{CoordinateSystem, Layout, LayoutSettings, TextStyle};
+use vger3d::{
     geometries::Geometries,
     uniforms::{Rect, Transforms},
     vertices::{Vertex, Vertices},
 };
-use fontdue::layout::{CoordinateSystem, Layout, LayoutSettings, TextStyle};
 
 mod path;
 use path::*;
@@ -35,7 +35,7 @@ mod atlas;
 mod glyphs;
 use glyphs::GlyphCache;
 
-pub mod canvas3d;
+pub mod vger3d;
 
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
@@ -219,7 +219,7 @@ impl VGER {
         let shader3d = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
             label: None,
             source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!(
-                "canvas3d/shader.wgsl"
+                "vger3d/shader.wgsl"
             ))),
         });
 
