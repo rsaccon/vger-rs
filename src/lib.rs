@@ -1,9 +1,11 @@
+use fj_math::{Aabb, Point};
 use std::mem::size_of;
 use wgpu::util::DeviceExt;
 
 use canvas3d::{
+    geometries::Geometries,
     uniforms::{Rect, Transforms},
-    vertices::Vertex,
+    vertices::{Vertex, Vertices},
 };
 use fontdue::layout::{CoordinateSystem, Layout, LayoutSettings, TextStyle};
 
@@ -78,8 +80,9 @@ pub struct VGER {
     transforms3d_buffer: wgpu::Buffer,
     bind_group3d: wgpu::BindGroup,
     pipeline3d: wgpu::RenderPipeline,
-    // pub processed_shape: Option<Arc<ProcessedShape>>,
-    // geometries: Geometries,
+    pub mesh: Vertices, // TOOD: eliminate
+    pub aabb: Aabb<3>,  // TOOD: eliminate
+    geometries: Geometries,
 }
 
 impl VGER {
@@ -325,15 +328,15 @@ impl VGER {
             multiview: None,
         });
 
-        // let geometries = Geometries::new(
-        //     &device,
-        //     &Vertices::empty(),
-        //     &Vertices::empty(),
-        //     Aabb {
-        //         min: Point::from([0.0, 0.0, 0.0]),
-        //         max: Point::from([0.0, 0.0, 0.0]),
-        //     },
-        // );
+        let geometries = Geometries::new(
+            &device,
+            &Vertices::empty(),
+            &Vertices::empty(),
+            Aabb {
+                min: Point::from([0.0, 0.0, 0.0]),
+                max: Point::from([0.0, 0.0, 0.0]),
+            },
+        );
 
         Self {
             scenes,
@@ -358,8 +361,12 @@ impl VGER {
             transforms3d_buffer,
             bind_group3d,
             pipeline3d,
-            // processed_shape: None,
-            // geometries,
+            mesh: Vertices::empty(),
+            aabb: Aabb {
+                min: Point::from([0.0, 0.0, 0.0]),
+                max: Point::from([0.0, 0.0, 0.0]),
+            },
+            geometries,
         }
     }
 
@@ -409,6 +416,22 @@ impl VGER {
 
         {
             let mut rpass = encoder.begin_render_pass(render_pass);
+
+            // BEGIN 3d
+            queue.write_buffer(
+                &self.transforms3d_buffer,
+                0,
+                bytemuck::cast_slice(&[self.transforms3d]),
+            );
+            self.geometries = Geometries::new(&device, &self.mesh, &Vertices::empty(), self.aabb);
+            let geometry = &self.geometries.mesh;
+
+            rpass.set_pipeline(&self.pipeline3d);
+            rpass.set_bind_group(0, &self.bind_group3d, &[]);
+            rpass.set_vertex_buffer(0, geometry.vertex_buffer.slice(..));
+            rpass.set_index_buffer(geometry.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+            rpass.draw_indexed(0..geometry.num_indices, 0, 0..1);
+            // END 3d
 
             rpass.set_pipeline(&self.pipeline);
 

@@ -10,6 +10,21 @@ impl Vertices {
     pub fn new(vertices: Vec<Vertex>, indices: Vec<Index>) -> Self {
         Self { vertices, indices }
     }
+
+    pub fn empty() -> Self {
+        Self {
+            vertices: Vec::new(),
+            indices: Vec::new(),
+        }
+    }
+
+    pub fn vertices(&self) -> &[Vertex] {
+        self.vertices.as_slice()
+    }
+
+    pub fn indices(&self) -> &[Index] {
+        self.indices.as_slice()
+    }
 }
 
 pub type Index = u32;

@@ -27,5 +27,6 @@ fontdue = "0.7.2"
 rect_packer = "0.2.1"
 rand = "0.7.3"
 
-nalgebra    = "0.30.0"
+nalgebra    = "0.30.0" # TODO: use euclid
 bytemuck = { version="1.8.0", features = [ "derive" ]}
+fj-math = { path = "../fornjot/crates/fj-math" } # TODO: use euclid
