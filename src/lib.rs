@@ -57,7 +57,7 @@ pub struct LineMetrics {
     pub bounds: LocalRect,
 }
 
-pub struct VGER {
+pub struct Vger {
     scenes: [Scene; 3],
     cur_scene: usize,
     cur_layer: usize,
@@ -85,7 +85,7 @@ pub struct VGER {
     geometries: Geometries,
 }
 
-impl VGER {
+impl Vger {
     /// Create a new renderer given a device and output pixel format.
     pub fn new(
         device: &wgpu::Device,
