@@ -75,14 +75,13 @@ pub struct Vger {
     layout: Layout,
 
     // 3d
-    pub viewport3d: Rect,
-    pub transforms3d: Transforms,
-    transforms3d_buffer: wgpu::Buffer,
+    // pub viewport3d: Rect,              // TODO: do we need this ???
+    pub transforms3d: Transforms, // TODO: store it in a map keyed by ViewId
+    transforms3d_buffer: wgpu::Buffer, // TODO: store it in a map keyed by ViewId
     bind_group3d: wgpu::BindGroup,
     pipeline3d: wgpu::RenderPipeline,
-    pub mesh: Vertices, // TOOD: eliminate
-    pub aabb: Aabb<3>,  // TOOD: eliminate
-    geometries: Geometries,
+    pub mesh: Vertices, // TODO: store it in a map keyed by ViewId
+    pub aabb: Aabb<3>,  // TOOD: store it in a map keyed by ViewId
 }
 
 impl Vger {
@@ -223,7 +222,7 @@ impl Vger {
             ))),
         });
 
-        let viewport3d = Rect::default();
+        // let viewport3d = Rect::default();
         let transforms3d = Transforms::default();
         let transforms3d_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
@@ -356,7 +355,7 @@ impl Vger {
             layout,
 
             // 3d:
-            viewport3d,
+            // viewport3d,
             transforms3d,
             transforms3d_buffer,
             bind_group3d,
@@ -366,7 +365,6 @@ impl Vger {
                 min: Point::from([0.0, 0.0, 0.0]),
                 max: Point::from([0.0, 0.0, 0.0]),
             },
-            geometries,
         }
     }
 
@@ -398,6 +396,23 @@ impl Vger {
         self.tx_stack.pop();
     }
 
+    // TODO: allow to update self.mesh and self.aabb
+    // pub fn update_geometry(&mut self, mesh: Vertices, lines: Vertices, aabb: Aabb<3>) {
+    //     self.geometries = Geometries::new(&self.device, &mesh, &lines, aabb);
+    // }
+
+    // TODO: add depth_view handling somewhere
+    // pub fn handle_resize(&mut self, size: PhysicalSize<u32>) {
+    //     self.surface_config.width = size.width;
+    //     self.surface_config.height = size.height;
+    //
+    //     self.surface.configure(&self.device, &self.surface_config);
+    //
+    //     let depth_view =
+    //         Self::create_depth_buffer(&self.device, &self.surface_config);
+    //     self.depth_view = depth_view;
+    // }
+
     /// Encode all rendering to a command buffer.
     pub fn encode(
         &mut self,
@@ -414,38 +429,39 @@ impl Vger {
 
         self.glyph_cache.update(device, &mut encoder);
 
+        // 3d uniforms
+        queue.write_buffer(
+            &self.transforms3d_buffer,
+            0,
+            bytemuck::cast_slice(&[self.transforms3d]),
+        );
+        // TODO: refactor to: self.transforms.update(queue);
+
+        let geometries = Geometries::new(&device, &self.mesh, &Vertices::empty(), self.aabb);
+
         {
             let mut rpass = encoder.begin_render_pass(render_pass);
 
-            // BEGIN 3d
-            queue.write_buffer(
-                &self.transforms3d_buffer,
-                0,
-                bytemuck::cast_slice(&[self.transforms3d]),
-            );
-            self.geometries = Geometries::new(&device, &self.mesh, &Vertices::empty(), self.aabb);
-            let geometry = &self.geometries.mesh;
-
+            // 3d pipeline
             rpass.set_pipeline(&self.pipeline3d);
             rpass.set_bind_group(0, &self.bind_group3d, &[]);
-            rpass.set_vertex_buffer(0, geometry.vertex_buffer.slice(..));
-            rpass.set_index_buffer(geometry.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-            rpass.draw_indexed(0..geometry.num_indices, 0, 0..1);
-            // END 3d
+            rpass.set_vertex_buffer(0, geometries.mesh.vertex_buffer.slice(..));
+            rpass.set_index_buffer(
+                geometries.mesh.index_buffer.slice(..),
+                wgpu::IndexFormat::Uint32,
+            );
+            rpass.draw_indexed(0..geometries.mesh.num_indices, 0, 0..1);
 
+            // 2d pipeline
             rpass.set_pipeline(&self.pipeline);
-
             rpass.set_bind_group(
                 0,
                 &self.scenes[self.cur_scene].bind_groups[self.cur_layer],
                 &[], // dynamic offsets
             );
-
             rpass.set_bind_group(1, &self.uniform_bind_group, &[]);
-
             let n = self.scenes[self.cur_scene].prims[self.cur_layer].data.len();
             // println!("encoding {:?} prims", n);
-
             rpass.draw(/*vertices*/ 0..4, /*instances*/ 0..(n as u32))
         }
         queue.submit(Some(encoder.finish()));
