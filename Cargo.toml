@@ -28,5 +28,8 @@ rect_packer = "0.2.1"
 rand = "0.7.3"
 
 nalgebra    = "0.30.0" # TODO: use euclid
+parry3d-f64 = "0.8.0"
+winit = "0.26.1"
 bytemuck = { version="1.8.0", features = [ "derive" ]}
 fj-math = { path = "../fornjot/crates/fj-math" } # TODO: use euclid
+fj-interop = { path = "../fornjot/crates/fj-interop" } # TODO: get rid of

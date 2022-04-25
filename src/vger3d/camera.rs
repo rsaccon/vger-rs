@@ -1,7 +1,8 @@
 use std::f64::consts::FRAC_PI_2;
 
-use fj_math::{Aabb, Scalar};
+use euclid::default::Box3D;
 // use fj_interop::mesh::Mesh;
+use fj_math::{Aabb, Scalar, Triangle};
 use nalgebra::{Point, TAffine, Transform, Translation, Vector};
 // use parry3d_f64::query::{Ray, RayCast as _};
 // use winit::dpi::PhysicalPosition;
@@ -28,62 +29,56 @@ pub struct Camera {
     /// point, which means they must include a translational component.
     pub rotation: Transform<f64, TAffine, 3>,
 
+    /// The locational part of the transform
     pub translation: Translation<f64, 3>,
 }
 
 impl Camera {
+    const SCREEN_FILL_FRAC: f64 = 0.5;
     const DEFAULT_NEAR_PLANE: f64 = 0.0001;
     const DEFAULT_FAR_PLANE: f64 = 1000.0;
 
     const INITIAL_FIELD_OF_VIEW_IN_X: f64 = FRAC_PI_2; // 90 degrees
 
-    // pub fn new(aabb: &Aabb<3>) -> Self {
-    //     let initial_distance = {
-    //         // Let's make sure we choose a distance, so that the model fills
-    //         // most of the screen.
-    //         //
-    //         // To do that, first compute the model's highest point, as well as
-    //         // the furthest point from the origin, in x and y.
-    //         let highest_point = aabb.max.z;
-    //         let furthest_point = [aabb.min.x.abs(), aabb.max.x, aabb.min.y.abs(), aabb.max.y]
-    //             .into_iter()
-    //             .reduce(Scalar::max)
-    //             // `reduce` can only return `None`, if there are no items in
-    //             // the iterator. And since we're creating an array full of
-    //             // items above, we know this can't panic.
-    //             .unwrap();
+    /// Returns a new camera aligned for viewing a bounding box
+    pub fn new(aabb: &Box3D<f64>) -> Self {
+        let initial_distance = {
+            // Let's make sure we choose a distance, so that the model fills
+            // most of the screen.
+            //
+            // To do that, first compute the model's highest point, as well as
+            // the furthest point from the origin, in x and y.
+            let highest_point = aabb.max.z;
+            let furthest_point = *[aabb.min.x.abs(), aabb.max.x, aabb.min.y.abs(), aabb.max.y]
+                .iter()
+                .reduce(|accum, item| if accum >= item { accum } else { item })
+                .unwrap();
 
-    //         // The actual furthest point is not far enough. We don't want the
-    //         // model to fill the whole screen.
-    //         let furthest_point = furthest_point * 2.;
+            // The actual furthest point is not far enough. We don't want the
+            // model to fill the whole screen.
+            let furthest_point = furthest_point / Self::SCREEN_FILL_FRAC;
+            // Having computed those points, figuring out how far the camera
+            // needs to be from the model is just a bit of trigonometry.
+            let distance_from_model =
+                furthest_point / (Self::INITIAL_FIELD_OF_VIEW_IN_X / 2.).atan();
 
-    //         // Having computed those points, figuring out how far the camera
-    //         // needs to be from the model is just a bit of trigonometry.
-    //         let distance_from_model =
-    //             furthest_point / (Self::INITIAL_FIELD_OF_VIEW_IN_X / 2.).atan();
+            // And finally, the distance from the origin is trivial now.
+            highest_point + distance_from_model
+        };
 
-    //         // An finally, the distance from the origin is trivial now.
-    //         highest_point + distance_from_model
-    //     };
+        let initial_offset = {
+            let mut offset = aabb.center();
+            offset.z = 0.;
+            -offset
+        };
 
-    //     let initial_offset = {
-    //         let mut offset = aabb.center();
-    //         offset.z = Scalar::ZERO;
-    //         -offset
-    //     };
-
-    //     Self {
-    //         near_plane: Self::DEFAULT_NEAR_PLANE,
-    //         far_plane: Self::DEFAULT_FAR_PLANE,
-
-    //         rotation: Transform::identity(),
-    //         translation: Translation::from([
-    //             initial_offset.x.into_f64(),
-    //             initial_offset.y.into_f64(),
-    //             -initial_distance.into_f64(),
-    //         ]),
-    //     }
-    // }
+        Self {
+            near_plane: Self::DEFAULT_NEAR_PLANE,
+            far_plane: Self::DEFAULT_FAR_PLANE,
+            rotation: Transform::identity(),
+            translation: Translation::from([initial_offset.x, initial_offset.y, -initial_distance]),
+        }
+    }
 
     pub fn near_plane(&self) -> f64 {
         self.near_plane
@@ -102,7 +97,7 @@ impl Camera {
             .inverse_transform_point(&Point::origin())
     }
 
-    // /// Transform the position of the cursor on the near plane to model space
+    /// Transform the position of the cursor on the near plane to model space
     // pub fn cursor_to_model_space(
     //     &self,
     //     cursor: PhysicalPosition<f64>,
@@ -119,13 +114,12 @@ impl Camera {
 
     //     // Cursor position in camera space.
     //     let f = (self.field_of_view_in_x() / 2.).tan() * self.near_plane();
-    //     let cursor =
-    //         Point::origin() + Vector::from([x * f, y * f, -self.near_plane()]);
+    //     let cursor = Point::origin() + Vector::from([x * f, y * f, -self.near_plane()]);
 
     //     self.camera_to_model().inverse_transform_point(&cursor)
     // }
 
-    // /// Compute the point on the model, that the cursor currently points to
+    /// Compute the point on the model, that the cursor currently points to
     // pub fn focus_point(
     //     &self,
     //     window: &Window,

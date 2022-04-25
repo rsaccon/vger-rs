@@ -1,9 +1,11 @@
+use euclid::default::{Box3D, Point3D};
 use fj_math::{Aabb, Point};
 use std::mem::size_of;
 use wgpu::util::DeviceExt;
 
 use fontdue::layout::{CoordinateSystem, Layout, LayoutSettings, TextStyle};
 use vger3d::{
+    camera::Camera,
     geometries::Geometries,
     uniforms::{Rect, Transforms},
     vertices::{Vertex, Vertices},
@@ -75,13 +77,11 @@ pub struct Vger {
     layout: Layout,
 
     // 3d
-    // pub viewport3d: Rect,              // TODO: do we need this ???
     pub transforms3d: Transforms, // TODO: store it in a map keyed by ViewId
     transforms3d_buffer: wgpu::Buffer, // TODO: store it in a map keyed by ViewId
     bind_group3d: wgpu::BindGroup,
     pipeline3d: wgpu::RenderPipeline,
-    pub mesh: Vertices, // TODO: store it in a map keyed by ViewId
-    pub aabb: Aabb<3>,  // TOOD: store it in a map keyed by ViewId
+    pub mesh: Vertices, // TODO: array of meshes
 }
 
 impl Vger {
@@ -327,16 +327,6 @@ impl Vger {
             multiview: None,
         });
 
-        let geometries = Geometries::new(
-            &device,
-            &Vertices::empty(),
-            &Vertices::empty(),
-            Aabb {
-                min: Point::from([0.0, 0.0, 0.0]),
-                max: Point::from([0.0, 0.0, 0.0]),
-            },
-        );
-
         Self {
             scenes,
             cur_scene: 0,
@@ -355,16 +345,11 @@ impl Vger {
             layout,
 
             // 3d:
-            // viewport3d,
             transforms3d,
             transforms3d_buffer,
             bind_group3d,
             pipeline3d,
             mesh: Vertices::empty(),
-            aabb: Aabb {
-                min: Point::from([0.0, 0.0, 0.0]),
-                max: Point::from([0.0, 0.0, 0.0]),
-            },
         }
     }
 
@@ -437,7 +422,8 @@ impl Vger {
         );
         // TODO: refactor to: self.transforms.update(queue);
 
-        let geometries = Geometries::new(&device, &self.mesh, &Vertices::empty(), self.aabb);
+        let geometries = Geometries::new(&device, &self.mesh, &Vertices::empty());
+        // TODO: better rui-like egronomics of command above
 
         {
             let mut rpass = encoder.begin_render_pass(render_pass);
