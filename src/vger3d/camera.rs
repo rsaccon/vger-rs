@@ -1,11 +1,7 @@
 use std::f64::consts::FRAC_PI_2;
 
 use euclid::default::Box3D;
-// use fj_interop::mesh::Mesh;
-use fj_math::{Aabb, Scalar, Triangle};
-use nalgebra::{Point, TAffine, Transform, Translation, Vector};
-// use parry3d_f64::query::{Ray, RayCast as _};
-// use winit::dpi::PhysicalPosition;
+use nalgebra::{Point, TAffine, Transform, Translation};
 
 // use crate::window::Window;
 

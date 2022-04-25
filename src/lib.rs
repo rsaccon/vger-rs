@@ -86,11 +86,7 @@ pub struct Vger {
 
 impl Vger {
     /// Create a new renderer given a device and output pixel format.
-    pub fn new(
-        device: &wgpu::Device,
-        texture_format: wgpu::TextureFormat,
-        // texture_format3d: wgpu::TextureFormat, // TODO: do we need this ?
-    ) -> Self {
+    pub fn new(device: &wgpu::Device, texture_format: wgpu::TextureFormat) -> Self {
         let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
             label: None,
             source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!(
@@ -222,7 +218,6 @@ impl Vger {
             ))),
         });
 
-        // let viewport3d = Rect::default();
         let transforms3d = Transforms::default();
         let transforms3d_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
