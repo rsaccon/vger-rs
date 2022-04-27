@@ -1,5 +1,4 @@
 use euclid::default::{Box3D, Point3D};
-use fj_math::{Aabb, Point};
 use std::mem::size_of;
 use wgpu::util::DeviceExt;
 

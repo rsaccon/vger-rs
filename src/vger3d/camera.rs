@@ -1,7 +1,7 @@
 use std::f64::consts::FRAC_PI_2;
 
-use euclid::default::Box3D;
-use nalgebra::{Point, TAffine, Transform, Translation};
+use euclid::default::{Box3D, Point3D, Transform3D, Translation3D};
+// use nalgebra::{Point, TAffine, Transform, Translation};
 
 // use crate::window::Window;
 
@@ -23,10 +23,12 @@ pub struct Camera {
     ///
     /// This is not an `nalgebra::Rotation`, as rotations happen around a center
     /// point, which means they must include a translational component.
-    pub rotation: Transform<f64, TAffine, 3>,
+    // pub rotation: Transform<f64, TAffine, 3>,
+    pub rotation: Transform3D<f64>, // TODO
 
     /// The locational part of the transform
-    pub translation: Translation<f64, 3>,
+    // pub translation: Translation<f64, 3>,
+    pub translation: Translation3D<f64>,
 }
 
 impl Camera {
@@ -71,8 +73,8 @@ impl Camera {
         Self {
             near_plane: Self::DEFAULT_NEAR_PLANE,
             far_plane: Self::DEFAULT_FAR_PLANE,
-            rotation: Transform::identity(),
-            translation: Translation::from([initial_offset.x, initial_offset.y, -initial_distance]),
+            rotation: Transform3D::identity(),
+            translation: Translation3D::new(initial_offset.x, initial_offset.y, -initial_distance),
         }
     }
 
@@ -88,10 +90,18 @@ impl Camera {
         Self::INITIAL_FIELD_OF_VIEW_IN_X
     }
 
-    pub fn position(&self) -> Point<f64, 3> {
+    pub fn position(&self) -> Point3D<f64> {
         self.camera_to_model()
-            .inverse_transform_point(&Point::origin())
+            .inverse()
+            .unwrap()
+            .transform_point3d(Point3D::origin())
+            .unwrap()
     }
+
+    // pub fn position(&self) -> Point<f64, 3> {
+    //     self.camera_to_model()
+    //         .inverse_transform_point(&Point::origin())
+    // }
 
     /// Transform the position of the cursor on the near plane to model space
     // pub fn cursor_to_model_space(
@@ -152,15 +162,14 @@ impl Camera {
     // }
 
     /// Access the transform from camera to model space
-    pub fn camera_to_model(&self) -> Transform<f64, TAffine, 3> {
-        // Using a mutable variable cleanly takes care of any type inference
-        // problems that this operation would otherwise have.
-        let mut transform = Transform::identity();
+    pub fn camera_to_model(&self) -> Transform3D<f64> {
+        //
+        // euclid: self.then(other) is equivalent to: self * other
+        //
 
-        transform *= self.translation;
-        transform *= self.rotation;
-
-        transform
+        Transform3D::identity()
+            .then(&self.translation.to_transform())
+            .then(&self.rotation)
     }
 
     // pub fn update_planes(&mut self, aabb: &Aabb<3>) {
@@ -212,7 +221,7 @@ impl Camera {
 ///
 /// Such a point might or might not exist, depending on whether the cursor is
 /// pointing at the model or not.
-pub struct FocusPoint(pub Option<Point<f64, 3>>);
+pub struct FocusPoint(pub Option<Point3D<f64>>);
 
 impl FocusPoint {
     /// Construct the "none" instance of `FocusPoint`
